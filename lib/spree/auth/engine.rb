@@ -1,6 +1,8 @@
 require 'devise'
 require 'devise-encryptable'
 
+require_relative 'configuration'
+
 module Spree
   module Auth
     class Engine < Rails::Engine
@@ -8,11 +10,11 @@ module Spree
       engine_name 'spree_auth'
 
       initializer "spree.auth.environment", before: :load_config_initializers do |_app|
-        Spree::Auth::Config = Spree::AuthConfiguration.new
+        Spree::Auth::Config = Spree::Auth::Configuration.new
       end
 
       initializer "spree_auth_devise.set_user_class", after: :load_config_initializers do
-        Spree.user_class = 'Spree::User' if Spree.user_class.blank? || Spree.user_class.to_s == 'Spree::LegacyUser'
+        Spree.user_class = 'Spree::User'
       end
 
       initializer "spree_auth_devise.check_secret_token" do
@@ -55,11 +57,15 @@ module Spree
       end
 
       def self.frontend_available?
-        @@frontend_available ||= ::Rails::Engine.subclasses.map(&:instance).map{ |e| e.class.to_s }.include?('Spree::Frontend::Engine')
+        @@frontend_available ||= Gem::Specification.find_all_by_name('spree_frontend').any?
       end
 
       def self.api_available?
         @@api_available ||= ::Rails::Engine.subclasses.map(&:instance).map{ |e| e.class.to_s }.include?('Spree::Api::Engine')
+      end
+
+      def self.emails_available?
+        @@emails_available ||= ::Rails::Engine.subclasses.map(&:instance).map{ |e| e.class.to_s }.include?('Spree::Emails::Engine')
       end
 
       if backend_available?
@@ -74,6 +80,11 @@ module Spree
 
       if api_available?
         paths["app/controllers"] << "lib/controllers/api"
+      end
+
+      if emails_available?
+        paths["app/views"] << "lib/views/emails"
+        paths["app/mailers"] << "lib/mailers"
       end
 
       config.to_prepare &method(:activate).to_proc
